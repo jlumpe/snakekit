@@ -1,0 +1,11 @@
+[flake8]
+max-line-length = 100
+
+# Ignore these codes:
+ignore =
+	# TABS ARE BETTER
+	W191,
+	# indentation contains mixed spaces and tabs - spaces for alignment
+	E101,
+	# Blank line at end of file - we require this in .editorconfig
+	W391

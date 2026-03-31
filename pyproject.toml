@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "snakekit"
+authors = [
+  {name = "Jared Lumpe", email = "jared@jaredlumpe.com"},
+]
+description = "Collection of tools for monitoring, testing, and debugging Snakemake workflows."
+readme = "README.md"
+dynamic = ["version"]
+
+requires-python = ">=3.12"
+dependencies = [
+]
+
+[project.urls]
+Homepage = "https://github.com/jlumpe/snakekit"
+Repository = "https://github.com/jlumpe/snakekit"
+
+
+[tool.setuptools.dynamic]
+version = {attr = "snakekit.__version__"}
