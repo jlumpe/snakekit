@@ -5,9 +5,28 @@ name = "snakekit"
 platforms = ["linux-64"]
 version = "0.1.0"
 
-[tasks]
+
+# ----------------------------------------- Dependencies ----------------------------------------- #
 
 [dependencies]
 
 [pypi-dependencies]
 snakekit = { path = ".", editable = true }
+
+
+[environments]
+default = { features = ["dev", "test"] }
+
+
+[feature.dev.dependencies]
+ipython = "*"
+
+
+[feature.test.dependencies]
+pytest = "*"
+pytest-cov = "*"
+
+
+# --------------------------------------------- Tasks -------------------------------------------- #
+
+[tasks]
