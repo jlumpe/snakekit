@@ -5,7 +5,7 @@ import json
 from typing import IO, Any, Iterable, Iterator, TypeAlias, NamedTuple, get_args
 from dataclasses import dataclass
 
-from .models import LogRecord
+from .models import LogRecord, LogRecordList
 from ..util import FilePath, maybe_open
 
 
@@ -152,9 +152,31 @@ class JsonObjectParser:
 			)
 
 
-def parse_logfile(file: FilePath | IO[str]) -> Iterator[LogRecord]:
+def parse_logfile_lazy(file: FilePath | IO[str]) -> Iterator[LogRecord]:
+	"""Lazily parse a JSON log file and yield log records.
+
+	File may be in standard JSONL format or "multi-line object" format.
+
+	Parameters
+	----------
+	file
+		File path or open file object.
+	"""
 	parser = JsonObjectParser()
 
 	with maybe_open(file) as fh:
 		for l1, l2, obj in parser.process_lines(fh):
 			yield LogRecord.model_validate(obj)
+
+
+def parse_logfile(file: FilePath | IO[str]) -> LogRecordList:
+	"""Parse a complete JSON log file.
+
+	File may be in standard JSONL format or "multi-line object" format.
+
+	Parameters
+	----------
+	file
+		File path or open file object.
+	"""
+	return LogRecordList(parse_logfile_lazy(file))

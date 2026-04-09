@@ -90,6 +90,10 @@ class SnakemakeLogEvent:
 				f"{type(self).__name__} is an abstract base class and cannot be instantiated."
 			)
 
+	def get_jobs(self) -> list[int]:
+		"""Get the job IDs associated with this event, if any."""
+		return []
+
 	@staticmethod
 	def from_record(record: LogRecord) -> "SnakemakeLogEvent | None":
 		"""Create an instance from a LogRecord.
@@ -191,7 +195,7 @@ class JobInfoEvent(SnakemakeLogEvent):
 	threads: int
 	input: list[str]
 	output: list[str]
-	log: list[str]
+	log: list[str]  = field(default_factory=list)
 	benchmark: str | None = None
 	rule_msg: str | None = None
 	wildcards: dict[str, Any] = field(default_factory=dict)
@@ -202,6 +206,9 @@ class JobInfoEvent(SnakemakeLogEvent):
 	local: bool | None = None
 	is_checkpoint: bool | None = None
 	is_handover: bool | None = None
+
+	def get_jobs(self) -> list[int]:
+		return [self.job_id]
 
 	@classmethod
 	def _from_extra(cls, extra: StrMap) -> Self:
@@ -231,6 +238,9 @@ class JobStartedEvent(SnakemakeLogEvent):
 
 	job_ids: list[int] = field(metadata={"snakemake_alias": "jobs"})
 
+	def get_jobs(self) -> list[int]:
+		return self.job_ids
+
 
 @dataclass
 class JobFinishedEvent(SnakemakeLogEvent):
@@ -238,14 +248,21 @@ class JobFinishedEvent(SnakemakeLogEvent):
 
 	job_id: int = field(metadata={"snakemake_alias": "jobid"})
 
+	def get_jobs(self) -> list[int]:
+		return [self.job_id]
+
 
 @dataclass
 class ShellCmdEvent(SnakemakeLogEvent):
 	event = LogEvent.SHELLCMD
 
+	# Only shellcmd set?
 	job_id: int | None = field(default=None, metadata={"snakemake_alias": "jobid"})
 	shellcmd: str | None = None
 	rule_name: str | None = None
+
+	def get_jobs(self) -> list[int]:
+		return [self.job_id] if self.job_id is not None else []
 
 	@classmethod
 	def _from_extra(cls, extra: StrMap) -> "ShellCmdEvent":
@@ -259,6 +276,9 @@ class JobErrorEvent(SnakemakeLogEvent):
 	event = LogEvent.JOB_ERROR
 
 	job_id: int = field(metadata={"snakemake_alias": "jobid"})
+
+	def get_jobs(self) -> list[int]:
+		return [self.job_id]
 
 
 @dataclass

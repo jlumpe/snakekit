@@ -1,10 +1,12 @@
-from typing import Sequence, TypeVar
+from typing import Sequence
 import logging
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 
 import pytest
+from packaging.version import parse as parse_version
 
 from snakekit.logging import models, events
+from snakekit.version import VersionInfo
 
 
 RANDOM_TIMESTAMP = 1759974850.185749
@@ -102,7 +104,7 @@ def example_snakemake_events() -> Sequence[events.SnakemakeLogEvent]:
 		events.RuleGraphEvent(
 			rulegraph={
 				'nodes': [{'rule': 'one'}, {'rule': 'two'}],
-				'edges': [{'source': 0, 'target': 1, 'sourcerule': 'one', 'targetrule': 'two'}],
+				'links': [{'source': 0, 'target': 1, 'sourcerule': 'one', 'targetrule': 'two'}],
 			},
 		),
 		events.RunInfoEvent(
@@ -133,6 +135,12 @@ def example_records_meta() -> Sequence[models.LogRecord]:
 		models.LoggingStartedEvent(
 			pid=1234,
 			proc_started=RANDOM_TIMESTAMP,
+			versions=VersionInfo(
+				snakekit=parse_version('0.1.0'),
+				snakemake=parse_version('9.0.0'),
+				snakemake_interface_common=parse_version('1.0.0'),
+				snakemake_interface_logger_plugins=parse_version('1.0.0'),
+			),
 		).record(created=factory.next_time()),
 		models.LoggingFinishedEvent().record(created=factory.next_time()),
 		models.FormattingErrorEvent(record_partial={'foo': 'bar'}).record(created=factory.next_time()),

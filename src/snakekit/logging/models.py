@@ -1,9 +1,10 @@
 """Classes used to represent log records."""
 
+from collections.abc import Iterable, Iterator, Sequence
 from datetime import datetime
 import logging
 import os
-from typing import Self, TypeVar, ClassVar, Any, Final, Literal
+from typing import Self, TypeVar, ClassVar, Any, Final, Literal, overload
 import time
 
 from pydantic import (
@@ -11,6 +12,7 @@ from pydantic import (
 	TypeAdapter,
 	field_serializer, field_validator, model_serializer, model_validator
 )
+from snakemake_interface_logger_plugins.common import LogEvent
 
 from snakekit.version import VersionInfo, get_version_info
 from .events import SnakemakeLogEvent, LOG_EVENT_CLASSES
@@ -128,7 +130,7 @@ class MetaLogEvent(BaseModel):
 		Unique event type string (class attribute).
 	"""
 
-	event: Final[str]
+	event: str
 	_registry: ClassVar[dict[str, type['MetaLogEvent']]] = {}
 	_levelno: ClassVar[int] = logging.INFO
 	_message: ClassVar[str] = ''
@@ -144,7 +146,7 @@ class MetaLogEvent(BaseModel):
 		"""Create a log record from this event."""
 		kw.setdefault('levelno', self._levelno)
 		kw.setdefault('message', self._message)
-		return LogRecord(meta=self, **kw)
+		return LogRecord(meta=self, **kw)  # pyright: ignore[reportArgumentType]
 
 
 class LoggingStartedEvent(MetaLogEvent):
@@ -161,7 +163,7 @@ class LoggingStartedEvent(MetaLogEvent):
 		Installed versions of Snakekit and core Snakemake packages.
 	"""
 
-	event: Literal['logging_started'] = 'logging_started'
+	event: Literal['logging_started'] = 'logging_started'  # pyright: ignore[reportIncompatibleVariableOverride]
 	_levelno = logging.INFO
 	_message = 'snakekit JSON logging plugin initialized'
 
@@ -185,7 +187,7 @@ class LoggingFinishedEvent(MetaLogEvent):
 	"""Indicates that the logging system has shut down and closed successfully.
 	"""
 
-	event: Literal['logging_finished'] = 'logging_finished'
+	event: Literal['logging_finished'] = 'logging_finished'  # pyright: ignore[reportIncompatibleVariableOverride]
 	_levelno = logging.INFO
 	_message = 'Logging concluded'
 
@@ -199,7 +201,7 @@ class FormattingErrorEvent(MetaLogEvent):
 		Dictionary of attributes that were successfully extracted from the log record.
 	"""
 
-	event: Literal['formatting_error'] = 'formatting_error'
+	event: Literal['formatting_error'] = 'formatting_error'  # pyright: ignore[reportIncompatibleVariableOverride]
 	_levelno = logging.ERROR
 	_message = 'Error converting log record to JSON'
 
@@ -314,3 +316,69 @@ class LogRecord(BaseModel):
 			data = dict(data)
 			del data['levelname']
 		return handler(data)
+
+
+class LogRecordList(Sequence[LogRecord]):
+	"""List-like collection of log records.
+
+	Provides basic convenience methods for filtering and grouping the records.
+	"""
+
+	_records: list[LogRecord]
+
+	def __init__(self, records: Iterable[LogRecord]):
+		self._records = list(records)
+
+	def by_job(self) -> dict[int, list[LogRecord]]:
+		"""Group records by job ID.
+
+		Returns a dictionary mapping job IDs to lists of records. Note that a single record can be
+		associated with multiple jobs.
+		"""
+		out = {}
+		for r in self._records:
+			if r.snakemake is None:
+				continue
+			for job_id in r.snakemake.get_jobs():
+				out.setdefault(job_id, []).append(r)
+		return out
+
+	def for_job(self, job_id: int) -> list[LogRecord]:
+		"""Get records with Snakemake events associated with a specific job."""
+		return [r for r in self._records if r.snakemake is not None and job_id in r.snakemake.get_jobs()]
+
+	def by_event(self) -> dict[LogEvent, list[LogRecord]]:
+		"""Group records by Snakemake event type."""
+		out = {}
+		for r in self._records:
+			if r.snakemake is None:
+				continue
+			out.setdefault(r.snakemake.event, []).append(r)
+		return out
+
+	def for_event(self, event: str) -> list[LogRecord]:
+		"""Get records with Snakemake events of a specific type."""
+		return [r for r in self._records if r.snakemake is not None and r.snakemake.event == event]
+
+	# ------------------------------------- Special methods ------------------------------------- #
+
+	def __len__(self) -> int:
+		return len(self._records)
+
+	@overload
+	def __getitem__(self, index: int) -> LogRecord: ...
+
+	@overload
+	def __getitem__(self, index: slice) -> list[LogRecord]: ...
+
+	def __getitem__(self, index: int | slice) -> LogRecord | list[LogRecord]:
+		return self._records[index]
+
+	def __iter__(self) -> Iterator[LogRecord]:
+		return iter(self._records)
+
+	def __contains__(self, item: Any) -> bool:
+		return item in self._records
+
+	def __repr__(self) -> str:
+		return f'<LogRecordList length={len(self)}>'
