@@ -89,7 +89,7 @@ def _check_metadata_match(mdata1: Metadata, mdata2: Metadata) -> None:
 			raise ValueError(f'Metadata mismatch in job {mdata1.job_hash} for field {field}: {v1} != {v2}')
 
 
-def combine_times(times: list[float | None], job_hash: int, attr: str) -> float | None:
+def _combine_times(times: list[float | None], job_hash: int, attr: str) -> float | None:
 	"""Combine start or end times for a single job.
 
 	For some reason the values vary slightly between metadata files for a single job.
@@ -127,8 +127,8 @@ def combine_metadata(metadata: dict[str, Metadata]) -> dict[int, MetadataJob]:
 
 		attrs = mdata.model_dump()
 		attrs['output'] = [output for output, _ in items]
-		attrs['starttime'] = combine_times([mdata.starttime for _, mdata in items], job_hash, 'starttime')
-		attrs['endtime'] = combine_times([mdata.endtime for _, mdata in items], job_hash, 'endtime')
+		attrs['starttime'] = _combine_times([mdata.starttime for _, mdata in items], job_hash, 'starttime')
+		attrs['endtime'] = _combine_times([mdata.endtime for _, mdata in items], job_hash, 'endtime')
 
 		jobs[job_hash] = MetadataJob(**attrs)
 
