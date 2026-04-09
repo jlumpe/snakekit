@@ -2,10 +2,11 @@
 """
 
 import json
-from typing import Any, Iterable, Iterator, TypeAlias, NamedTuple, get_args
+from typing import IO, Any, Iterable, Iterator, TypeAlias, NamedTuple, get_args
 from dataclasses import dataclass
 
-from .models import JsonLogRecord
+from .models import LogRecord
+from ..util import FilePath, maybe_open
 
 
 JsonData: TypeAlias = str | bytes | bytearray
@@ -151,8 +152,9 @@ class JsonObjectParser:
 			)
 
 
-def parse_logfile(lines: Iterable[str]) -> Iterator[JsonLogRecord]:
+def parse_logfile(file: FilePath | IO[str]) -> Iterator[LogRecord]:
 	parser = JsonObjectParser()
 
-	for l1, l2, obj in parser.process_lines(lines):
-		yield JsonLogRecord.model_validate(obj)
+	with maybe_open(file) as fh:
+		for l1, l2, obj in parser.process_lines(fh):
+			yield LogRecord.model_validate(obj)

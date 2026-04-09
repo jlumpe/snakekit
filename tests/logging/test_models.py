@@ -1,10 +1,10 @@
 from collections.abc import Sequence
 import logging
 
-from snakekit.logging.models import JsonLogRecord
+from snakekit.logging.models import LogRecord
 
 
-def test_builtin_conversion(example_records: Sequence[JsonLogRecord]):
+def test_builtin_conversion(example_records: Sequence[LogRecord]):
 	"""Test conversion to/from builtin LogRecord type."""
 
 	for json_record in example_records:
@@ -25,6 +25,6 @@ def test_builtin_conversion(example_records: Sequence[JsonLogRecord]):
 
 		builtin_record = logging.makeLogRecord(attrs)
 
-		json_record2 = JsonLogRecord.from_builtin(builtin_record)
-		assert isinstance(json_record2, JsonLogRecord)
+		json_record2 = LogRecord.from_builtin(builtin_record)
+		assert isinstance(json_record2, LogRecord)
 		assert json_record2 == json_record

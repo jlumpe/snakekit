@@ -3,7 +3,7 @@
 from datetime import datetime
 import logging
 import os
-from typing import Self, TypeVar, ClassVar, Any
+from typing import Self, TypeVar, ClassVar, Any, Final, Literal
 import time
 
 from pydantic import (
@@ -12,6 +12,7 @@ from pydantic import (
 	field_serializer, field_validator, model_serializer, model_validator
 )
 
+from snakekit.version import VersionInfo, get_version_info
 from .events import SnakemakeLogEvent, LOG_EVENT_CLASSES
 
 
@@ -127,7 +128,7 @@ class MetaLogEvent(BaseModel):
 		Unique event type string (class attribute).
 	"""
 
-	event: ClassVar[str]
+	event: Final[str]
 	_registry: ClassVar[dict[str, type['MetaLogEvent']]] = {}
 	_levelno: ClassVar[int] = logging.INFO
 	_message: ClassVar[str] = ''
@@ -139,33 +140,13 @@ class MetaLogEvent(BaseModel):
 		assert cls.event not in cls._registry, f'Event {cls.event} already registered'
 		cls._registry[cls.event] = cls
 
-	@model_serializer(mode='wrap')
-	def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-		data = handler(self)
-		data['event'] = self.event
-		return data
-
-	@model_validator(mode='wrap')
-	@classmethod
-	def _validate_subtype(cls, data, handler: ValidatorFunctionWrapHandler) -> Self:
-		# Only dispatch on base class
-		if cls is not MetaLogEvent:
-			return handler(data)
-		# Already an instance (still pass to handler to check right subtype based on cls?)
-		if isinstance(data, MetaLogEvent):
-			return handler(data)
-		assert isinstance(data, dict)
-
-		subcls = cls._registry[data['event']]
-		return subcls.model_validate(data)  # type: ignore
-
-	def record(self, **kw) -> 'JsonLogRecord':
+	def record(self, **kw) -> 'LogRecord':
+		"""Create a log record from this event."""
 		kw.setdefault('levelno', self._levelno)
 		kw.setdefault('message', self._message)
-		return JsonLogRecord(meta=self, **kw)
+		return LogRecord(meta=self, **kw)
 
 
-# @register_meta_model
 class LoggingStartedEvent(MetaLogEvent):
 	"""Indicates the initialization of the logging system.
 
@@ -176,27 +157,39 @@ class LoggingStartedEvent(MetaLogEvent):
 	proc_started
 		Timestamp when the snakemake process started, if available. Can be used in addition to PID
 		to avoid edge case of PID reuse.
+	versions
+		Installed versions of Snakekit and core Snakemake packages.
 	"""
 
-	event = 'logging_started'
+	event: Literal['logging_started'] = 'logging_started'
 	_levelno = logging.INFO
 	_message = 'snakekit JSON logging plugin initialized'
 
-	pid: int = Field(default_factory=os.getpid)
+	pid: int
 	proc_started: float | None = None
+	versions: VersionInfo
+
+	@classmethod
+	def create(cls, **kw) -> 'LoggingStartedEvent':
+		"""Create with default values for ``pid`` and ``versions``.
+
+		This is implemented as a separate function instead of assigning defaults to the Pydantic
+		fields, because they should not be used when validating from JSON data.
+		"""
+		kw.setdefault('pid', os.getpid())
+		kw.setdefault('versions', get_version_info())
+		return cls(**kw)
 
 
-# @register_meta_model
 class LoggingFinishedEvent(MetaLogEvent):
 	"""Indicates that the logging system has shut down and closed successfully.
 	"""
 
-	event = 'logging_finished'
+	event: Literal['logging_finished'] = 'logging_finished'
 	_levelno = logging.INFO
 	_message = 'Logging concluded'
 
 
-# @register_meta_model
 class FormattingErrorEvent(MetaLogEvent):
 	"""Indicates an error formatting a log record.
 
@@ -206,19 +199,22 @@ class FormattingErrorEvent(MetaLogEvent):
 		Dictionary of attributes that were successfully extracted from the log record.
 	"""
 
-	event = 'formatting_error'
+	event: Literal['formatting_error'] = 'formatting_error'
 	_levelno = logging.ERROR
 	_message = 'Error converting log record to JSON'
 
 	record_partial: dict[str, Any]
 
 
+type MetaLogEventSubclass = LoggingStartedEvent | LoggingFinishedEvent | FormattingErrorEvent
+
+
 # ------------------------------------------------------------------------------------------------ #
 #                                               Base                                               #
 # ------------------------------------------------------------------------------------------------ #
 
-class JsonLogRecord(BaseModel):
-	"""Base class for models of a JSON-formatted log records.
+class LogRecord(BaseModel):
+	"""Log record with additional Snakekit-specific data that can be serialized to JSON.
 
 	Can be constructed from builtin :class:`logging.LogRecord` instances using the
 	:meth:`from_builtin` method. Afterwards should be able to be converted to/from JSON losslessly.
@@ -232,9 +228,9 @@ class JsonLogRecord(BaseModel):
 	created
 		Timestamp when log record was created.
 	snakemake
-		Data associated with a Snakemake log event.
+		Snakemake log event data, if any.
 	meta
-		Data associated with a meta log event.
+		Structured data describing the logging session itself.
 	"""
 
 	model_config = ConfigDict(extra='forbid')
@@ -247,7 +243,7 @@ class JsonLogRecord(BaseModel):
 	created: float = Field(default_factory=lambda: time.time_ns() / 1e9)
 	exc_info: ExceptionInfo | None = None
 	snakemake: SnakemakeLogEvent | None = None
-	meta: MetaLogEvent | None = None
+	meta: MetaLogEventSubclass | None = None
 
 	@property
 	def created_dt(self) -> datetime:
@@ -263,7 +259,7 @@ class JsonLogRecord(BaseModel):
 		return logging.getLevelName(self.levelno)
 
 	@classmethod
-	def from_builtin(cls, record: logging.LogRecord) -> 'JsonLogRecord':
+	def from_builtin(cls, record: logging.LogRecord) -> 'LogRecord':
 		"""Construct a log record model from a builtin :class:`logging.LogRecord` instance.
 
 		This recognizes records with Snakemake event data attached.
@@ -280,7 +276,8 @@ class JsonLogRecord(BaseModel):
 				exc_info = ExceptionInfo.from_exception(exc)
 
 		return cls(
-			message=record.message,
+			# Attibute not set if a formatter hasn't processed it yet
+			message=record.message if hasattr(record, 'message') else record.getMessage(),
 			levelno=record.levelno,
 			created=record.created,
 			exc_info=exc_info,

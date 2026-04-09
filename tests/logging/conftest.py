@@ -11,11 +11,11 @@ RANDOM_TIMESTAMP = 1759974850.185749
 LEVELS = [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]
 
 
-def make_record(**kw) -> models.JsonLogRecord:
+def make_record(**kw) -> models.LogRecord:
 	kw.setdefault('message', f'Test')
 	kw.setdefault('levelno', logging.INFO)
 	kw.setdefault('created', RANDOM_TIMESTAMP)
-	return models.JsonLogRecord(**kw)
+	return models.LogRecord(**kw)
 
 
 @dataclass
@@ -31,7 +31,7 @@ class RecordFactory:
 		self.i += 1
 		return time
 
-	def make_record(self, **kw) -> models.JsonLogRecord:
+	def make_record(self, **kw) -> models.LogRecord:
 		kw.setdefault('levelno', LEVELS[self.i % len(LEVELS)])
 		kw.setdefault('created', self.next_time())
 		return make_record(**kw)
@@ -112,7 +112,7 @@ def example_snakemake_events() -> Sequence[events.SnakemakeLogEvent]:
 
 
 @pytest.fixture(scope='session')
-def example_records_sm(example_snakemake_events: Sequence[events.SnakemakeLogEvent]) -> Sequence[models.JsonLogRecord]:
+def example_records_sm(example_snakemake_events: Sequence[events.SnakemakeLogEvent]) -> Sequence[models.LogRecord]:
 	"""Example log record instances with each Snakemake event type."""
 
 	factory = RecordFactory()
@@ -124,7 +124,7 @@ def example_records_sm(example_snakemake_events: Sequence[events.SnakemakeLogEve
 
 
 @pytest.fixture(scope='session')
-def example_records_meta() -> Sequence[models.JsonLogRecord]:
+def example_records_meta() -> Sequence[models.LogRecord]:
 	"""Example log record instances with each meta event type."""
 
 	factory = RecordFactory()
@@ -140,7 +140,7 @@ def example_records_meta() -> Sequence[models.JsonLogRecord]:
 
 
 @pytest.fixture(scope='session')
-def example_records_standard() -> Sequence[models.JsonLogRecord]:
+def example_records_standard() -> Sequence[models.LogRecord]:
 	"""Example standard log record instances, one of each level."""
 
 	factory = RecordFactory()
@@ -156,6 +156,6 @@ def example_records(
 	example_records_standard,
 	example_records_sm,
 	example_records_meta,
-) -> Sequence[models.JsonLogRecord]:
-	"""Example JsonLogRecord instances, one of each subclass."""
+) -> Sequence[models.LogRecord]:
+	"""Example LogRecord instances, one of each subclass."""
 	return (*example_records_standard, *example_records_sm, *example_records_meta)

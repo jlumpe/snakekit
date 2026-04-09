@@ -151,6 +151,7 @@ class ErrorEvent(SnakemakeLogEvent):
 	event = LogEvent.ERROR
 
 	exception: str | None = None
+	# None of the below are actually set currently
 	location: str | None = None
 	rule: str | None = None
 	traceback: str | None = None
@@ -188,16 +189,16 @@ class JobInfoEvent(SnakemakeLogEvent):
 	job_id: int = field(metadata={"snakemake_alias": "jobid"})
 	rule_name: str
 	threads: int
-	input: list[str] | None = None
-	output: list[str] | None = None
-	log: list[str] | None = None
+	input: list[str]
+	output: list[str]
+	log: list[str]
 	benchmark: str | None = None
 	rule_msg: str | None = None
-	wildcards: dict[str, Any] | None = field(default_factory=dict)
+	wildcards: dict[str, Any] = field(default_factory=dict)
 	reason: str | None = None
 	shellcmd: str | None = None
 	priority: int | None = None
-	resources: dict[str, Any] | None = field(default_factory=dict)
+	resources: dict[str, Any] = field(default_factory=dict)
 	local: bool | None = None
 	is_checkpoint: bool | None = None
 	is_handover: bool | None = None
